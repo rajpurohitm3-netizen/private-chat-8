@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, Camera, X, ChevronLeft, ChevronRight, Eye, Clock, 
-  Radio, Loader2, ImageIcon, Play, Shield, ArrowLeft, Star, Save, CameraOff, SwitchCamera
+  Radio, Loader2, ImageIcon, Play, Shield, ArrowLeft, Star, Save, CameraOff, SwitchCamera, Trash2
 } from "lucide-react";
 import { AvatarDisplay } from "@/components/AvatarDisplay";
 import { Button } from "@/components/ui/button";
@@ -296,10 +296,12 @@ export function Stories({ userId }: StoriesProps) {
   );
 }
 
-function StoryViewer({ group, index, userId, onClose, onNext }: any) {
+function StoryViewer({ group, index, userId, onClose, onNext, onDelete }: any) {
   const story = group.stories[index];
   const [progress, setProgress] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isOwnStory = group.user_id === userId;
 
   useEffect(() => {
     setProgress(0);
@@ -330,6 +332,23 @@ function StoryViewer({ group, index, userId, onClose, onNext }: any) {
     }
   };
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await supabase.from("story_views").delete().eq("story_id", story.id);
+      await supabase.from("story_saves").delete().eq("story_id", story.id);
+      const { error } = await supabase.from("stories").delete().eq("id", story.id);
+      if (error) throw error;
+      toast.success("Story deleted!");
+      onDelete?.(story.id);
+      onClose();
+    } catch (err: any) {
+      toast.error("Failed to delete story");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black flex items-center justify-center">
       <div className="w-full h-full max-w-lg relative bg-black flex flex-col">
@@ -355,7 +374,17 @@ function StoryViewer({ group, index, userId, onClose, onNext }: any) {
         <div className="flex-1 flex items-center justify-center relative">
           {story.media_type === 'video' ? <video src={story.media_url} autoPlay playsInline className="w-full h-full object-contain" /> : <img src={story.media_url} className="w-full h-full object-contain" alt="" />}
         </div>
-        <div className="p-10 bg-gradient-to-t from-black to-transparent flex flex-col items-center gap-6">
+        <div className="p-10 bg-gradient-to-t from-black to-transparent flex flex-col items-center gap-4">
+          {isOwnStory && (
+            <Button 
+              onClick={handleDelete} 
+              disabled={isDeleting}
+              className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all"
+            >
+              {isDeleting ? <Loader2 className="w-5 h-5 mr-3 animate-spin" /> : <Trash2 className="w-5 h-5 mr-3" />}
+              {isDeleting ? 'Deleting...' : 'Delete Story'}
+            </Button>
+          )}
           <Button onClick={toggleSave} className={`w-full h-16 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${isSaved ? 'bg-amber-500 text-black' : 'bg-white/10 text-white border border-white/10'}`}>
             <Star className={`w-5 h-5 mr-3 ${isSaved ? 'fill-black' : ''}`} />
             {isSaved ? 'Snapshot Saved' : 'Save Snapshot'}
